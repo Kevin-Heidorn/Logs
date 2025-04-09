@@ -1,11 +1,10 @@
-const fs = require('fs');
 const axios = require('axios');
 
-// Caminho para o arquivo NDJSON (um JSON por linha)
-const caminhoDoJson = './Teste.json';
-
-// Caminho para salvar o JSON convertido
-const caminhoConvertido = './convertido.json';
+// Simulação do conteúdo do NDJSON (duas linhas)
+const ndjsonSimulado = `
+{"id":"OP123","player":{"id":"COD_DO_PONTO_DE_VCS"},"content":{"id":"CODIGO_DO_ANUNCIO","name":"Campanha Incrível"},"ts":"2025-04-07T17:21:09.438Z"}
+{"id":"OP124","player":{"id":"CODIGO_DO_PLAYER_DE_VCS"},"content":{"id":"CODIGO_DO_ANUNCIO","name":"Campanha Super"},"ts":"2025-04-07T18:22:10.000Z"}
+`;
 
 // URL da API
 const url = 'https://dooh139api.ivcbrasil.org.br/Exibitions';
@@ -17,48 +16,29 @@ const headers = {
 };
 
 try {
-  // Lê todo o conteúdo do arquivo NDJSON
-  const rawData = fs.readFileSync(caminhoDoJson, 'utf8');
-
-  // Divide por linha, filtra vazias e converte cada linha no novo formato
-  const linhasConvertidas = rawData
+  const linhasConvertidas = ndjsonSimulado
+    .trim()
     .split('\n')
-    .filter(linha => linha.trim() !== '')
     .map(linha => {
       const obj = JSON.parse(linha);
       return {
-        codVeiculo: 99,
-        dataHoraEnvio: new Date().toISOString().split('.')[0],
+        codVeiculo: 139,
+        dataHoraEnvio: new Date().toISOString(),
         codPonto: obj.player.id,
         codPlayer: obj.player.id,
         codMidia: obj.content.id,
-        dataHoraExibicao: obj.ts.split('.')[0],
-        codOp: obj.id,
-        cnpjAnunciante: '44578875000140',
-        anunciante: 'Empresa BlaBlaBla Ltda.',
-        marca: obj.content.name,
-        produto: 'Campanha Programática',
-        tituloCampanha: obj.content.name,
-        timezone: 'America/Sao_Paulo',
-        codCampanhaVeiculo: 123456,
-        codCampanhaIvc: 3133
+        dataHoraExibicao: new Date(obj.ts).toISOString(),
+        codOp: obj.id
       };
     });
 
-  // Salva o JSON convertido (em array) em um novo arquivo
-  fs.writeFileSync(caminhoConvertido, JSON.stringify(linhasConvertidas, null, 2));
-  console.log('💾 Arquivo convertido salvo como convertido.json');
+  console.log('📦 JSON gerado para envio:\n', JSON.stringify(linhasConvertidas, null, 2));
 
-  // Envia os dados convertidos via POST (em lote)
   axios.post(url, linhasConvertidas, { headers })
     .then(response => {
       console.log('✅ Dados enviados com sucesso!');
-      console.log('📦 Código de status:', response.status);
-      console.log('📦 Resposta:', response.data);
-
-      if (response.status === 200) {
-        console.log('🎉 Tudo certo, resposta 200 OK!');
-      }
+      console.log('📡 Código de status:', response.status);
+      console.log('📨 Resposta:', response.data);
     })
     .catch(error => {
       const statusCode = error.response?.status || 'sem status';
@@ -66,7 +46,5 @@ try {
     });
 
 } catch (err) {
-  console.error('❌ Erro ao ler ou interpretar o JSON:', err.message);
+  console.error('❌ Erro ao processar o JSON simulado:', err.message);
 }
-
-
