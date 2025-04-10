@@ -1,50 +1,58 @@
+const fs = require('fs');
 const axios = require('axios');
 
-// Simulação do conteúdo do NDJSON (duas linhas)
-const ndjsonSimulado = `
-{"id":"OP123","player":{"id":"COD_DO_PONTO_DE_VCS"},"content":{"id":"CODIGO_DO_ANUNCIO","name":"Campanha Incrível"},"ts":"2025-04-07T17:21:09.438Z"}
-{"id":"OP124","player":{"id":"CODIGO_DO_PLAYER_DE_VCS"},"content":{"id":"CODIGO_DO_ANUNCIO","name":"Campanha Super"},"ts":"2025-04-07T18:22:10.000Z"}
-`;
+const arquivoEntrada = './Teste.json';
+const arquivoSaida = './convertido.json';
 
-// URL da API
+// Configuração da API IVC
 const url = 'https://dooh139api.ivcbrasil.org.br/Exibitions';
-
-// Headers exigidos pela API
 const headers = {
   'ivc-subscription-key': 'DOOH74897CE242C1BF7E8CFBBC12C3CC',
   'Content-Type': 'application/json'
 };
 
-try {
-  const linhasConvertidas = ndjsonSimulado
-    .trim()
-    .split('\n')
-    .map(linha => {
-      const obj = JSON.parse(linha);
-      return {
-        codVeiculo: 139,
-        dataHoraEnvio: new Date().toISOString(),
-        codPonto: obj.player.id,
-        codPlayer: obj.player.id,
-        codMidia: obj.content.id,
-        dataHoraExibicao: new Date(obj.ts).toISOString(),
-        codOp: obj.id
-      };
-    });
+// Função principal
+async function processarEEnviar() {
+  try {
+    const rawData = fs.readFileSync(arquivoEntrada, 'utf8');
+    const dataHoraEnvio = new Date().toISOString();
 
-  console.log('📦 JSON gerado para envio:\n', JSON.stringify(linhasConvertidas, null, 2));
+    const exibicoes = rawData
+      .trim()
+      .split('\n')
+      .map(linha => {
+        const obj = JSON.parse(linha);
+        return {
+          codVeiculo: 139,
+          dataHoraEnvio,
+          codPonto: obj.player.id,
+          codPlayer: obj.player.id,
+          codMidia: obj.content.id,
+          dataHoraExibicao: obj.ts,
+          codOp: obj.content.name
+        };
+      });
 
-  axios.post(url, linhasConvertidas, { headers })
-    .then(response => {
-      console.log('✅ Dados enviados com sucesso!');
-      console.log('📡 Código de status:', response.status);
-      console.log('📨 Resposta:', response.data);
-    })
-    .catch(error => {
-      const statusCode = error.response?.status || 'sem status';
-      console.error(`❌ Erro ao enviar os dados (status: ${statusCode}):`, error.response?.data || error.message);
-    });
+    console.log(`🎯 Total de registros convertidos: ${exibicoes.length}`);
 
-} catch (err) {
-  console.error('❌ Erro ao processar o JSON simulado:', err.message);
+    // Salva os dados convertidos em um arquivo
+    fs.writeFileSync(arquivoSaida, JSON.stringify(exibicoes, null, 2), 'utf8');
+    console.log(`💾 Arquivo salvo como ${arquivoSaida}`);
+
+    // Log extra para contar o total final
+    console.log(`📊 Total de registros no convertido.json: ${exibicoes.length}`);
+
+    // Envia em lotes
+    const lote = 10000;
+    for (let i = 0; i < exibicoes.length; i += lote) {
+      const chunk = exibicoes.slice(i, i + lote);
+      const resposta = await axios.post(url, chunk, { headers });
+      console.log(`✅ Lote ${i / lote + 1} enviado - Status: ${resposta.status}`);
+    }
+
+  } catch (erro) {
+    console.error('❌ Erro:', erro.response?.data || erro.message);
+  }
 }
+
+processarEEnviar();
